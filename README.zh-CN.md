@@ -26,24 +26,38 @@
 - **PowerShell**（用于 SendKeys 集成，可选）
 - **MinGW g++**（Tanner 自带，用于 UPI 宏编译，可选）
 
-### 安装
+### 作为 Codex Skill 安装（推荐）
 
-**一键安装**（Windows PowerShell）：
-
-```powershell
-.\install.ps1
-```
-
-**一键安装**（Linux/macOS）：
+一条命令安装 Skill，之后直接用自然语言对话：
 
 ```bash
-bash install.sh
+codex skill install tjusaltedfish/cli-anything-Ledit/skill/ledit-layout
 ```
 
-**pip 安装**（任意平台）：
+或使用 skill installer 脚本：
 
 ```bash
-pip install cli-anything-ledit
+python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo tjusaltedfish/cli-anything-Ledit \
+  --path skill/ledit-layout
+```
+
+安装完成后，直接对 Codex 说中文即可：
+
+> "画一个 4x6 的方阵，方块 2 微米，间距 5 微米"
+
+> "对当前 cell 跑一下 DRC"
+
+> "提取网表，保存为 SPICE 格式"
+
+> "在 Metal1 上画一个 10x5 的矩形"
+
+Agent 会自动处理一切——安装依赖、生成脚本、编译宏、在 L-Edit 中执行。
+
+### pip 安装
+
+```bash
+pip install git+https://github.com/tjusaltedfish/cli-anything-Ledit.git
 ```
 
 从源码安装：
@@ -54,10 +68,14 @@ cd cli-anything-Ledit
 pip install -e .
 ```
 
-带开发工具：
+一键脚本：
 
-```bash
-pip install -e ".[dev]"
+```powershell
+# Windows
+.\install.ps1
+
+# Linux/macOS
+bash install.sh
 ```
 
 ### 验证安装
@@ -288,4 +306,5 @@ cli-anything-ledit --json macro-extract-action --action run \
 ## 致谢
 
 基于 [Click](https://click.palletsprojects.com/) CLI 框架构建。
+
 

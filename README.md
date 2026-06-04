@@ -26,30 +26,54 @@ A **CLI-Anything** harness that automates [Tanner L-Edit](https://www.sw.siemens
 - **PowerShell** (for SendKeys integration, optional)
 - **MinGW g++** bundled with Tanner (for UPI macro compilation, optional)
 
-### Install
+### Install as Codex Skill (Recommended)
 
-**One-click** (Windows PowerShell):
-
-```powershell
-.\install.ps1
-```
-
-**One-click** (Linux/macOS):
+One command — installs the skill into Codex so you can use natural language:
 
 ```bash
-bash install.sh
+codex skill install tjusaltedfish/cli-anything-Ledit/skill/ledit-layout
 ```
 
-**pip** (any platform):
+Or using the skill installer script:
 
 ```bash
+python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo tjusaltedfish/cli-anything-Ledit \
+  --path skill/ledit-layout
+```
+
+After installation, just talk to Codex naturally:
+
+> "Draw a 4x6 square array with 2um squares at 5um pitch"
+
+> "Run DRC on the current cell"
+
+> "Extract the netlist and save as SPICE"
+
+The agent handles everything automatically — installing dependencies, generating scripts, compiling macros, and executing in L-Edit.
+
+### Install via pip
+
+```bash
+pip install git+https://github.com/tjusaltedfish/cli-anything-Ledit.git
+```
+
+From source:
+
+```bash
+git clone https://github.com/tjusaltedfish/cli-anything-Ledit.git
+cd cli-anything-Ledit
 pip install -e .
 ```
 
-With development tools:
+One-click scripts:
 
-```bash
-pip install -e ".[dev]"
+```powershell
+# Windows
+.\install.ps1
+
+# Linux/macOS
+bash install.sh
 ```
 
 ### Verify Installation
@@ -280,5 +304,6 @@ cli-anything-ledit --json macro-extract-action --action run \
 ## Acknowledgments
 
 Built with [Click](https://click.palletsprojects.com/) for the CLI framework.
+
 
 
