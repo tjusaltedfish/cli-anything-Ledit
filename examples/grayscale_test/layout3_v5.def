@@ -1,0 +1,4 @@
+LIBRARY layout3_v5
+EXPORTS
+    UPI_Entry_Point @1
+    AdjacencyComprehensive @2

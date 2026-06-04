@@ -1,0 +1,2 @@
+status=error
+message=Failed to open layout file

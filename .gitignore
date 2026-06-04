@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project outputs (generated files)
+agent-harness/outputs/*.tco
+agent-harness/outputs/*.svg
+agent-harness/outputs/*.run.txt
+agent-harness/outputs/*.open.ps1
+agent-harness/outputs/*.cpp
+agent-harness/outputs/*.upi
+agent-harness/outputs/*.def
+agent-harness/outputs/*.receipt.txt
+agent-harness/outputs/*.tdb
+
+# Temporary files
+tmp/
+*.tmp
+
+# Large doc files (keep docs in repo but not generated data)
+agent-harness/ledit_doc_current.txt
+# Old directory structure (moved to root)
+agent-harness/
+mimo2codex-setup-guide.md
+tmp/
+
+
+*.tdb
+*.upi
+*.tdo
+*.bmp
+*.png
+*.cif
+~$*.tdb
+
+# Binary/generated files in examples
+examples/**/*.tdb
+examples/**/*.upi
+examples/**/*.tdo
+examples/**/*.bmp
+examples/**/*.png
+examples/**/*.cif
+examples/**/~$*

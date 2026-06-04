@@ -1,0 +1,4 @@
+LIBRARY layout1_v2
+EXPORTS
+    UPI_Entry_Point @1
+    DoseCalibration256 @2

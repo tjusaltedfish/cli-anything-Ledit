@@ -1,0 +1,4 @@
+LIBRARY view_home
+EXPORTS
+    UPI_Entry_Point @1
+    ViewHome @2

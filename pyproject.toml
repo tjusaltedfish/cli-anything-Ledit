@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cli-anything-ledit"
+version = "0.1.0"
+description = "CLI-Anything harness for automating Tanner L-Edit layout scripts via command window and UPI macros."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "tjusaltedfish", email = "1150321356@qq.com"},
+]
+keywords = ["l-edit", "tanner-eda", "layout", "cli", "automation", "ic-design", "cad"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+dependencies = [
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+cli-anything-ledit = "cli_anything.ledit.ledit_cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tjusaltedfish/cli-anything-Ledit"
+Repository = "https://github.com/tjusaltedfish/cli-anything-Ledit"
+Issues = "https://github.com/tjusaltedfish/cli-anything-Ledit/issues"
+
+[tool.setuptools.packages.find]
+include = ["cli_anything*"]
+
+[tool.pytest.ini_options]
+testpaths = ["cli_anything/ledit/tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

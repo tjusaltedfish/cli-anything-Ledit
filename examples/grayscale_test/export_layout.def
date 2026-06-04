@@ -1,0 +1,4 @@
+LIBRARY export_layout
+EXPORTS
+    UPI_Entry_Point @1
+    ExportLayout @2

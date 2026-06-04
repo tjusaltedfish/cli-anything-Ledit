@@ -1,0 +1,4 @@
+LIBRARY set_layer_cif
+EXPORTS
+    UPI_Entry_Point @1
+    SetLayerCifNames @2

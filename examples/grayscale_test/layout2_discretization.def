@@ -1,0 +1,4 @@
+LIBRARY layout2_discretization
+EXPORTS
+    UPI_Entry_Point @1
+    DiscretizationTestMask @2

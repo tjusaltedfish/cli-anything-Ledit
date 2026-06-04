@@ -1,0 +1,4 @@
+LIBRARY open_all_layouts
+EXPORTS
+    UPI_Entry_Point @1
+    OpenAllLayouts @2

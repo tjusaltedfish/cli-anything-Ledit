@@ -1,0 +1,4 @@
+LIBRARY layout3_adjacency
+EXPORTS
+    UPI_Entry_Point @1
+    AdjacencyTestMask @2

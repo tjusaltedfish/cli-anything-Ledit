@@ -1,0 +1,4 @@
+LIBRARY grayscale_test
+EXPORTS
+    UPI_Entry_Point @1
+    GrayscaleTestMasks @2

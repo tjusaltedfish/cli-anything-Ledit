@@ -1,0 +1,4 @@
+LIBRARY layout1_dose_calibration
+EXPORTS
+    UPI_Entry_Point @1
+    DoseCalibrationMask @2

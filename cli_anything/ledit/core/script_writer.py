@@ -1,0 +1,481 @@
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+from ..config import resolve_ledit_exe
+
+CURRENT_LAYER = "CURRENT"
+
+
+def quote_ledit(value: str) -> str:
+    """Quote names that need L-Edit command-window escaping."""
+    if not value:
+        raise ValueError("L-Edit names must not be empty")
+    if any(char.isspace() for char in value) or "," in value or '"' in value or "\\" in value:
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return value
+
+
+def format_number(value: float) -> str:
+    text = f"{value:.12g}"
+    return "0" if text == "-0" else text
+
+
+def parse_points(values: list[object], *, min_points: int) -> list[tuple[float, float]]:
+    if len(values) < min_points:
+        raise ValueError(f"expected at least {min_points} points")
+    points: list[tuple[float, float]] = []
+    for value in values:
+        if not isinstance(value, list | tuple) or len(value) != 2:
+            raise ValueError("points must be [x, y] pairs")
+        points.append((float(value[0]), float(value[1])))
+    return points
+
+
+def _command_with_layer(base: str, layer: str | None) -> str:
+    if layer is None or layer.upper() == CURRENT_LAYER:
+        return base
+    return f"{base} -l {quote_ledit(layer)}"
+
+
+def _absolute_xy(operation: dict[str, Any]) -> str:
+    return f"-! {format_number(float(operation['x']))} {format_number(float(operation['y']))}"
+
+
+@dataclass(frozen=True)
+class LayoutScriptSpec:
+    operations: list[dict[str, Any]]
+    cell: str = "TOP"
+    layer: str = CURRENT_LAYER
+    save: bool = True
+    title: str = "layout_script"
+
+    def validate(self) -> None:
+        quote_ledit(self.cell)
+        if self.layer.upper() != CURRENT_LAYER:
+            quote_ledit(self.layer)
+        if not self.operations:
+            raise ValueError("layout script must contain at least one operation")
+        for operation in self.operations:
+            if not isinstance(operation, dict):
+                raise ValueError("each operation must be an object")
+            if "op" not in operation:
+                raise ValueError("each operation requires an 'op' field")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "cell": self.cell,
+            "layer": self.layer,
+            "save": self.save,
+            "title": self.title,
+            "operation_count": len(self.operations),
+            "operations": self.operations,
+        }
+
+
+@dataclass(frozen=True)
+class SquareArraySpec:
+    rows: int
+    cols: int
+    size: float
+    pitch_x: float
+    pitch_y: float
+    layer: str = CURRENT_LAYER
+    cell: str = "TOP"
+    origin_x: float = 0.0
+    origin_y: float = 0.0
+
+    def validate(self) -> None:
+        if self.rows <= 0:
+            raise ValueError("rows must be greater than zero")
+        if self.cols <= 0:
+            raise ValueError("cols must be greater than zero")
+        if self.size <= 0:
+            raise ValueError("size must be greater than zero")
+        if self.pitch_x == 0:
+            raise ValueError("pitch_x must not be zero")
+        if self.pitch_y == 0:
+            raise ValueError("pitch_y must not be zero")
+        if self.layer.upper() != CURRENT_LAYER:
+            quote_ledit(self.layer)
+        quote_ledit(self.cell)
+
+    @property
+    def count(self) -> int:
+        return self.rows * self.cols
+
+    @property
+    def bounds(self) -> tuple[float, float, float, float]:
+        x_values = [self.origin_x, self.origin_x + (self.cols - 1) * self.pitch_x]
+        y_values = [self.origin_y, self.origin_y + (self.rows - 1) * self.pitch_y]
+        return (
+            min(x_values),
+            min(y_values),
+            max(x_values) + self.size,
+            max(y_values) + self.size,
+        )
+
+    def boxes(self) -> list[tuple[float, float, float, float]]:
+        boxes: list[tuple[float, float, float, float]] = []
+        for row in range(self.rows):
+            for col in range(self.cols):
+                x1 = self.origin_x + col * self.pitch_x
+                y1 = self.origin_y + row * self.pitch_y
+                boxes.append((x1, y1, x1 + self.size, y1 + self.size))
+        return boxes
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class LayerProbeSpec:
+    layer: str
+    cell: str = "TOP"
+    origin_x: float = 0.0
+    origin_y: float = 0.0
+    marker_size: float = 0.2
+    draw_marker: bool = True
+
+    def validate(self) -> None:
+        if self.layer.upper() == CURRENT_LAYER:
+            raise ValueError("layer-probe requires a real layer name, not CURRENT")
+        quote_ledit(self.layer)
+        quote_ledit(self.cell)
+        if self.marker_size <= 0:
+            raise ValueError("marker_size must be greater than zero")
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+def build_square_array_tco(spec: SquareArraySpec) -> str:
+    spec.validate()
+    lines = [
+        "// Generated by cli-anything-ledit.",
+        "// Execute in L-Edit command window with: run <this-file>",
+        f"cell {quote_ledit(spec.cell)}",
+    ]
+    if spec.layer.upper() == CURRENT_LAYER:
+        lines.append("// Using current active L-Edit layer; no layer command emitted.")
+    else:
+        lines.append(f"layer {quote_ledit(spec.layer)}")
+    for x1, y1, x2, y2 in spec.boxes():
+        lines.append(
+            "box -! "
+            f"{format_number(x1)} {format_number(y1)} "
+            f"{format_number(x2)} {format_number(y2)}"
+        )
+    lines.append("save")
+    return "\n".join(lines) + "\n"
+
+
+def build_layer_probe_tco(spec: LayerProbeSpec) -> str:
+    spec.validate()
+    lines = [
+        "// Generated by cli-anything-ledit.",
+        "// Layer probe: run this in L-Edit to test whether the active design can use this layer.",
+        f"cell {quote_ledit(spec.cell)}",
+        f"layer {quote_ledit(spec.layer)}",
+    ]
+    if spec.draw_marker:
+        x1 = spec.origin_x
+        y1 = spec.origin_y
+        x2 = spec.origin_x + spec.marker_size
+        y2 = spec.origin_y + spec.marker_size
+        lines.append(
+            "box -! "
+            f"{format_number(x1)} {format_number(y1)} "
+            f"{format_number(x2)} {format_number(y2)}"
+        )
+    else:
+        lines.append("// No marker requested; this only tests cell/layer selection and save.")
+    lines.append("save")
+    return "\n".join(lines) + "\n"
+
+
+def build_layout_script_tco(spec: LayoutScriptSpec) -> str:
+    spec.validate()
+    lines = [
+        "// Generated by cli-anything-ledit.",
+        f"// Layout script: {spec.title}",
+        f"cell {quote_ledit(spec.cell)}",
+    ]
+    if spec.layer.upper() == CURRENT_LAYER:
+        lines.append("// Using current active L-Edit layer; no layer command emitted.")
+    else:
+        lines.append(f"layer {quote_ledit(spec.layer)}")
+    for operation in spec.operations:
+        lines.extend(_operation_to_tco(operation, default_layer=spec.layer))
+    if spec.save:
+        lines.append("save")
+    return "\n".join(lines) + "\n"
+
+
+def _operation_to_tco(operation: dict[str, Any], *, default_layer: str) -> list[str]:
+    op = str(operation["op"]).lower()
+    layer = operation.get("layer", default_layer)
+    if layer is not None:
+        layer = str(layer)
+
+    if op == "comment":
+        text = str(operation.get("text", ""))
+        return [f"// {text}"]
+
+    if op == "cell":
+        return [f"cell {quote_ledit(str(operation['name']))}"]
+
+    if op == "layer":
+        layer_name = str(operation["name"])
+        if layer_name.upper() == CURRENT_LAYER:
+            return ["// Using current active L-Edit layer; no layer command emitted."]
+        return [f"layer {quote_ledit(layer_name)}"]
+
+    if op == "width":
+        if "value" not in operation or operation["value"] is None:
+            return ["width"]
+        return [f"width {format_number(float(operation['value']))}"]
+
+    if op == "goto":
+        return [f"goto {_absolute_xy(operation)}"]
+
+    if op == "instance":
+        command = f"instance {quote_ledit(str(operation['cell']))} {_absolute_xy(operation)}"
+        if "file" in operation and operation["file"]:
+            command = f"{command} -f {quote_ledit(str(operation['file']))}"
+        return [command]
+
+    if op == "array":
+        cols = int(operation["cols"])
+        rows = int(operation["rows"])
+        pitch_x = float(operation.get("pitch_x", operation.get("pitch", 0)))
+        pitch_y = float(operation.get("pitch_y", operation.get("pitch", 0)))
+        if cols <= 0 or rows <= 0:
+            raise ValueError("array rows and cols must be greater than zero")
+        if pitch_x == 0 and cols > 1:
+            raise ValueError("array pitch_x must not be zero when cols > 1")
+        if pitch_y == 0 and rows > 1:
+            raise ValueError("array pitch_y must not be zero when rows > 1")
+        return [f"array {cols} {rows} {format_number(pitch_x)} {format_number(pitch_y)}"]
+
+    if op == "box":
+        x1 = float(operation["x1"])
+        y1 = float(operation["y1"])
+        x2 = float(operation["x2"])
+        y2 = float(operation["y2"])
+        command = (
+            "box -! "
+            f"{format_number(x1)} {format_number(y1)} "
+            f"{format_number(x2)} {format_number(y2)}"
+        )
+        return [_command_with_layer(command, layer)]
+
+    if op == "square-array":
+        pitch = operation.get("pitch")
+        spec = SquareArraySpec(
+            rows=int(operation["rows"]),
+            cols=int(operation["cols"]),
+            size=float(operation["size"]),
+            pitch_x=float(operation.get("pitch_x", pitch if pitch is not None else operation["size"])),
+            pitch_y=float(operation.get("pitch_y", pitch if pitch is not None else operation["size"])),
+            layer=str(layer or CURRENT_LAYER),
+            cell=str(operation.get("cell", "TOP")),
+            origin_x=float(operation.get("origin_x", 0.0)),
+            origin_y=float(operation.get("origin_y", 0.0)),
+        )
+        spec.validate()
+        lines: list[str] = []
+        if "cell" in operation:
+            lines.append(f"cell {quote_ledit(spec.cell)}")
+        for x1, y1, x2, y2 in spec.boxes():
+            command = (
+                "box -! "
+                f"{format_number(x1)} {format_number(y1)} "
+                f"{format_number(x2)} {format_number(y2)}"
+            )
+            lines.append(_command_with_layer(command, spec.layer))
+        return lines
+
+    if op in {"path", "wire"}:
+        points = parse_points(operation["points"], min_points=2)
+        coords = " ".join(f"{format_number(x)} {format_number(y)}" for x, y in points)
+        command = f"path -! {coords}"
+        width = operation.get("width", operation.get("path_width"))
+        if width is not None:
+            command = f"{command} -pw {format_number(float(width))}"
+        return [_command_with_layer(command, layer)]
+
+    if op == "polygon":
+        points = parse_points(operation["points"], min_points=3)
+        coords = " ".join(f"{format_number(x)} {format_number(y)}" for x, y in points)
+        return [_command_with_layer(f"polygon -! {coords}", layer)]
+
+    if op == "text":
+        label = quote_ledit(str(operation["label"]))
+        x = format_number(float(operation["x"]))
+        y = format_number(float(operation["y"]))
+        return [_command_with_layer(f"text {label} -! {x} {y}", layer)]
+
+    if op == "copy":
+        if "x" not in operation and "y" not in operation:
+            return ["copy"]
+        return [_command_with_layer(f"copy {_absolute_xy(operation)}", layer)]
+
+    if op == "move":
+        mode = str(operation.get("mode", "absolute")).lower()
+        x = format_number(float(operation["x"]))
+        y = format_number(float(operation["y"]))
+        if mode == "relative":
+            return [f"move {x} {y}"]
+        return [f"move -! {x} {y}"]
+
+    if op == "paste":
+        mode = str(operation.get("mode", "absolute")).lower()
+        x = format_number(float(operation["x"]))
+        y = format_number(float(operation["y"]))
+        if mode == "relative":
+            return [_command_with_layer(f"paste {x} {y}", layer)]
+        return [_command_with_layer(f"paste -! {x} {y}", layer)]
+
+    if op == "rotate":
+        angle = float(operation["angle"])
+        if not -360 < angle < 360:
+            raise ValueError("rotate angle must be greater than -360 and less than 360")
+        mode = str(operation.get("mode", "absolute")).lower()
+        x = format_number(float(operation["x"]))
+        y = format_number(float(operation["y"]))
+        if mode == "relative":
+            return [f"rotate {format_number(angle)} {x} {y}"]
+        return [f"rotate {format_number(angle)} -! {x} {y}"]
+
+    if op == "saveas":
+        target = quote_ledit(str(operation["path"]))
+        return [f"saveas {target}"]
+
+    if op == "raw":
+        command = str(operation["command"]).strip()
+        if not command:
+            raise ValueError("raw operation requires a non-empty command")
+        if command.lower().startswith("run "):
+            raise ValueError("raw run commands are not allowed inside generated scripts")
+        return [command]
+
+    raise ValueError(f"unsupported layout operation: {operation['op']}")
+
+
+def build_square_array_svg(spec: SquareArraySpec) -> str:
+    spec.validate()
+    min_x, min_y, max_x, max_y = spec.bounds
+    margin = max(spec.size, abs(spec.pitch_x), abs(spec.pitch_y)) * 0.25
+    width = (max_x - min_x) + 2 * margin
+    height = (max_y - min_y) + 2 * margin
+    view_x = min_x - margin
+    view_y = -(max_y + margin)
+    parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        (
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            f'viewBox="{format_number(view_x)} {format_number(view_y)} '
+            f'{format_number(width)} {format_number(height)}">'
+        ),
+        '<rect width="100%" height="100%" fill="#f8f8f4"/>',
+        '<g transform="scale(1,-1)" fill="#3b82f6" stroke="#172554" stroke-width="0.03">',
+    ]
+    for x1, y1, x2, y2 in spec.boxes():
+        parts.append(
+            f'<rect x="{format_number(x1)}" y="{format_number(y1)}" '
+            f'width="{format_number(x2 - x1)}" height="{format_number(y2 - y1)}"/>'
+        )
+    parts.extend(["</g>", "</svg>", ""])
+    return "\n".join(parts)
+
+
+def write_square_array(spec: SquareArraySpec, out_path: Path) -> dict[str, object]:
+    out_path = out_path.resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    svg_path = out_path.with_suffix(".svg")
+    run_path = out_path.with_suffix(".run.txt")
+    ps1_path = out_path.with_suffix(".open.ps1")
+    run_command = build_run_command(out_path)
+    out_path.write_text(build_square_array_tco(spec), encoding="utf-8")
+    svg_path.write_text(build_square_array_svg(spec), encoding="utf-8")
+    run_path.write_text(run_command + "\n", encoding="utf-8")
+    ps1_path.write_text(build_open_ps1(run_command), encoding="utf-8")
+    return {
+        "ok": True,
+        "script": str(out_path),
+        "preview": str(svg_path),
+        "run_file": str(run_path),
+        "powershell_open_file": str(ps1_path),
+        "run_command": run_command,
+        "spec": spec.to_dict(),
+        "box_count": spec.count,
+        "bounds": spec.bounds,
+    }
+
+
+def write_layer_probe(spec: LayerProbeSpec, out_path: Path) -> dict[str, object]:
+    out_path = out_path.resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    run_path = out_path.with_suffix(".run.txt")
+    ps1_path = out_path.with_suffix(".open.ps1")
+    run_command = build_run_command(out_path)
+    out_path.write_text(build_layer_probe_tco(spec), encoding="utf-8")
+    run_path.write_text(run_command + "\n", encoding="utf-8")
+    ps1_path.write_text(build_open_ps1(run_command), encoding="utf-8")
+    return {
+        "ok": True,
+        "script": str(out_path),
+        "run_file": str(run_path),
+        "powershell_open_file": str(ps1_path),
+        "run_command": run_command,
+        "spec": spec.to_dict(),
+    }
+
+
+def write_layout_script(spec: LayoutScriptSpec, out_path: Path) -> dict[str, object]:
+    out_path = out_path.resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    run_path = out_path.with_suffix(".run.txt")
+    ps1_path = out_path.with_suffix(".open.ps1")
+    run_command = build_run_command(out_path)
+    out_path.write_text(build_layout_script_tco(spec), encoding="utf-8")
+    run_path.write_text(run_command + "\n", encoding="utf-8")
+    ps1_path.write_text(build_open_ps1(run_command), encoding="utf-8")
+    return {
+        "ok": True,
+        "script": str(out_path),
+        "run_file": str(run_path),
+        "powershell_open_file": str(ps1_path),
+        "run_command": run_command,
+        "spec": spec.to_dict(),
+    }
+
+
+def build_open_ps1(run_command: str) -> str:
+    escaped_run = run_command.replace("'", "''")
+    ledit = resolve_ledit_exe()
+    ledit_str = str(ledit).replace("\\", "\\\\") if ledit else "ledit64.exe"
+    return "\n".join(
+        [
+            "$ErrorActionPreference = 'Stop'",
+            "$runCommand = '" + escaped_run + "'",
+            "Set-Clipboard -Value $runCommand",
+            "$ledit = '" + ledit_str + "'",
+            "if (Test-Path -LiteralPath $ledit) {",
+            "    Start-Process -FilePath $ledit -ArgumentList '-s','-n'",
+            "}",
+            "Write-Host 'Copied this L-Edit Command Window command to the clipboard:'",
+            "Write-Host $runCommand",
+            "Write-Host ''",
+            "Write-Host 'Important: do not run this line in PowerShell. Paste it into L-Edit Command Window.'",
+            "",
+        ]
+    )
+
+
+def build_run_command(path: Path) -> str:
+    ledit_path = str(path).replace("\\", "/")
+    return f'run "{ledit_path}"'
