@@ -1,3 +1,5 @@
+> **English** | [中文](README.zh-CN.md)
+
 # cli-anything-Ledit
 
 A **CLI-Anything** harness that automates [Tanner L-Edit](https://www.sw.siemens.com/ic-design/tanner-eda/) layout tasks from the command line. Generate Tanner Command Files (`.tco`), compile and execute UPI macros, control L-Edit windows via SendKeys, and verify layout geometry — all without touching the GUI.
@@ -26,11 +28,25 @@ A **CLI-Anything** harness that automates [Tanner L-Edit](https://www.sw.siemens
 
 ### Install
 
+**One-click** (Windows PowerShell):
+
+```powershell
+.\install.ps1
+```
+
+**One-click** (Linux/macOS):
+
+```bash
+bash install.sh
+```
+
+**pip** (any platform):
+
 ```bash
 pip install -e .
 ```
 
-Or with development tools:
+With development tools:
 
 ```bash
 pip install -e ".[dev]"
@@ -264,3 +280,5 @@ cli-anything-ledit --json macro-extract-action --action run \
 ## Acknowledgments
 
 Built with [Click](https://click.palletsprojects.com/) for the CLI framework.
+
+
